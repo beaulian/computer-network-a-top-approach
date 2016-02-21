@@ -117,7 +117,7 @@ def make_response(message):
 		400: 'Bad Request'
 	}
 
-	status_line = "{0} {1} {2}".format(
+	status_line = "{0} {1} {2}\n".format(
 		message['Version'], message['Status'], phrases[message['Status']]		
 	)
 	header_lines = '\n'.join(['{0}: {1}'.format(k, v)
