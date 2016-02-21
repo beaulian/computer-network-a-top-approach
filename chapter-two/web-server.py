@@ -101,7 +101,6 @@ def http_parse(request_string):
 		body = None
 
 	header_lines = header.rstrip().split("\n")
-	print request_string
 	method, uri, version = header_lines[0].split()
 	headers = [l.split(': ') for l in header_lines[1:]]
 	return dict(itertools.chain(
