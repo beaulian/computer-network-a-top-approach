@@ -8,6 +8,8 @@ import socket
 import itertools
 from socket import socket as Socket
 
+from threading import *
+
 BUFFER_SIZE = 4096
 REMOTE_PORT = 80
 
@@ -33,31 +35,44 @@ def main():
 	    while True:
 	    	try:
 	    		connection_socket = server_socket.accept()[0]
-	    		request_string = connection_socket.recv(BUFFER_SIZE).decode().replace("\r\n", "\n")
-	    		http_dict = http_parse(request_string)
-	    		full_url = http_dict["Host"] + http_dict["Uri"] if "http" not in http_dict["Uri"] else http_dict["Uri"]
 
-	    		# check cache for page
-	    		cached_page = cache_dict.get(full_url)
-
-	    		if cached_page is None:
-	    			cached_page = get_page(http_dict["Host"], request_string).replace("\r\n", "\n").encode("utf-8")
-	    			cache_dict[full_url] = cached_page
-
-	    			print "Serving page ", full_url, " and cached it"
-	    			print "\n"
-	    			print cached_page
-	    		else:
-	    			print "Got page from ", full_url, " from cache"
-
-	    		connection_socket.send(cached_page)
-
+	    		t = Thread(target=handle_http, args=[cache_dict, connection_socket])
+	    		t.setDaemon(1)
+	    		t.start()
+	    		t.join()
+	    	except socket.error, e:
+	    		print e
 	    	finally:
 	    		connection_socket.close()
+	    	
 	finally:
 		server_socket.close()
 
 	return 0
+
+
+def handle_http(cache_dict, connection_socket):
+	print "new child ", currentThread().getName()
+
+	request_string = connection_socket.recv(BUFFER_SIZE).decode().replace("\r\n", "\n")
+	http_dict = http_parse(request_string)
+	full_url = http_dict["Host"] + http_dict["Uri"] if "http" not in http_dict["Uri"] else http_dict["Uri"]
+
+	# check cache for page
+	cached_page = cache_dict.get(full_url)
+
+	if cached_page is None:
+		cached_page = get_page(http_dict["Host"], request_string).replace("\r\n", "\n").encode("utf-8")
+		cache_dict[full_url] = cached_page
+
+		print "Serving page ", full_url, " and cached it"
+		print "\n"
+		print cached_page
+	else:
+		print "Got page from ", full_url, " from cache"
+
+	connection_socket.send(cached_page)
+	connection_socket.close()
 
 
 def http_parse(request_string):
@@ -83,13 +98,14 @@ def get_page(server_address, request_string):
 
 		client_socket.send(request_string.encode())
 
-		had_received = 0
-		part_body = "part_body"
 		reply = bytes()
-		while had_received < BUFFER_SIZE:
-			part_body = client_socket.recv(BUFFER_SIZE).decode("utf-8")
+		while True:
+			part_body = client_socket.recv(BUFFER_SIZE).decode("utf-8", "ignore")
+			# print part_body
+			if not len(part_body):
+				break
 			reply += part_body
-			had_received += len(part_body)
+
 	finally:
 		client_socket.close()
 
